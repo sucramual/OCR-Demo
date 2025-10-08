@@ -5,6 +5,9 @@ Demonstrates that increasing image resolution boosts OCR-style QA accuracy for m
 """
 
 import os
+# Silence tokenizer parallelism warning
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 import re
 from pathlib import Path
 
@@ -13,6 +16,7 @@ from PIL import Image
 import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
+import fitz  # PyMuPDF
 
 from transformers import AutoProcessor, LlavaForConditionalGeneration
 
@@ -29,10 +33,10 @@ print(f"Device: {DEVICE} | dtype: {DTYPE}")
 print(f"Loading model: {MODEL_ID}...")
 
 # Load model and processor
-processor = AutoProcessor.from_pretrained(MODEL_ID, trust_remote_code=True)
+processor = AutoProcessor.from_pretrained(MODEL_ID, use_fast=True, trust_remote_code=True)
 model = LlavaForConditionalGeneration.from_pretrained(
     MODEL_ID,
-    torch_dtype=DTYPE,
+    dtype=DTYPE,
     low_cpu_mem_usage=True,
     device_map="auto" if DEVICE == "cuda" else None,
     trust_remote_code=True
@@ -45,8 +49,27 @@ print("Model loaded successfully!\n")
 
 
 def load_image(path, target_res):
-    """Load and resize image while maintaining aspect ratio."""
-    img = Image.open(path).convert("RGB")
+    """Load and resize image while maintaining aspect ratio. Supports PDFs and images."""
+    path_str = str(path)
+
+    # Handle PDF files using PyMuPDF
+    if path_str.lower().endswith('.pdf'):
+        # Open PDF and get first page
+        pdf_doc = fitz.open(path_str)
+        page = pdf_doc[0]  # First page
+
+        # Render at high resolution (300 DPI equivalent)
+        # PyMuPDF uses a matrix for scaling: 300 DPI = 4.17x scaling
+        mat = fitz.Matrix(4.17, 4.17)
+        pix = page.get_pixmap(matrix=mat)
+
+        # Convert pixmap to PIL Image
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        pdf_doc.close()
+    else:
+        # Handle regular image files
+        img = Image.open(path).convert("RGB")
+
     w, h = img.size
 
     # Resize so shorter side = target_res
@@ -145,7 +168,7 @@ def run_resolution_sweep():
 
     # Save results
     res_df = pd.DataFrame.from_records(records)
-    res_df.to_csv("results_predictions.csv", index=False)
+    res_df.to_csv("data/results_predictions.csv", index=False)
     print(f"✓ Saved: results_predictions.csv")
 
     # Aggregate by resolution
