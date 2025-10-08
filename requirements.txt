@@ -1,0 +1,18 @@
+# PyTorch for Apple Silicon (MPS)
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Hugging Face transformers and utilities
+transformers>=4.45.0
+accelerate>=0.34.2
+sentencepiece>=0.1.99
+safetensors>=0.4.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Data processing and visualization
+pandas>=2.0.0
+matplotlib>=3.7.0
+tqdm>=4.65.0
